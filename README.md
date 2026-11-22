@@ -1,6 +1,12 @@
 # Mobile Studio
 
-A Roblox-Studio-style editor for Android: open, build, script, playtest and publish your places on the go.
+Edit/Publish Roblox games from your mobile device.
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/0203df09-abc7-4cc3-9ba6-e6c28b066da5" width="48%" />
+  <img src="https://github.com/user-attachments/assets/b1179fe0-5fc8-4210-a5e8-b4f0c89a0b52" width="48%" />
+  <img src="https://github.com/user-attachments/assets/e6dda4c8-be36-4acc-ae28-f72198e4a4e8" width="48%" />
+</p>
+You are able to do almost anything that the real desktop computer studio can do, but instead, all from your mobile device. There are still many issues and missing things, and many more things that need to be done. But for now, you can do most things. This works offline to.
 
 > Not affiliated with, endorsed by, or sponsored by Roblox Corporation.
 
@@ -17,6 +23,24 @@ A Roblox-Studio-style editor for Android: open, build, script, playtest and publ
 - **AI Assistant:** chat with Claude to build in your place, using your own Anthropic API key, plus an MCP server so other AI apps can connect
 
 See the in-app **Update Log** (`app/src/main/java/.../ui/UpdateLog.kt`) for the full list.
+
+## FAQ
+
+### How did you make this?
+I created this with Android Studio and Claude Code, which did require computer. Would you rather have waited way longer for someone to create ALL of this, or use it now? This might have taken months years to get this far if no AI was used. https://x.com/ashen_one/status/2123230920626884849
+
+### Is this safe?
+Ya. The full source code is right here in this repo, so anyone can check what it does.
+
+### Will I get banned for using this?
+I doubt it, it's using something similar to the Roblox game Studio Lite to publish/save/edit your games. I've been using on my main account for over a week now and no issues. I've been creating, publishing, saving, editing.
+
+### iOS support wen?
+I don't really use iOS anymore, but I will try to make an iOS version soon. I have heard that someone used an Android emulator to install it on their iOS device, so you could probably do that for now.
+
+If you still don't feel comfortable using it, that's understandable, but you can always use a guest account or make a brand new account for this if you want to use it.
+
+Anyways, enjoy❤
 
 ## Building
 
