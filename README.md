@@ -6,7 +6,7 @@ Edit/Publish Roblox games from your mobile device.
   <img src="https://github.com/user-attachments/assets/b1179fe0-5fc8-4210-a5e8-b4f0c89a0b52" width="48%" />
   <img src="https://github.com/user-attachments/assets/e6dda4c8-be36-4acc-ae28-f72198e4a4e8" width="48%" />
 </p>
-You are able to do almost anything that the real desktop computer studio can do, but instead, all from your mobile device. There are still many issues and missing things, and many more things that need to be done. But for now, you can do most things. This works offline to.
+You are able to do almost anything that the real desktop computer studio can do, but instead, all from your mobile device. There are still many issues and missing things, and many more things that need to be done. But for now, you can do most things. This works offline too.
 
 > Not affiliated with, endorsed by, or sponsored by Roblox Corporation.
 
@@ -27,7 +27,7 @@ See the in-app **Update Log** (`app/src/main/java/.../ui/UpdateLog.kt`) for the 
 ## FAQ
 
 ### How did you make this?
-I created this with Android Studio and Claude Code, which did require computer. Would you rather have waited way longer for someone to create ALL of this, or use it now? This might have taken months years to get this far if no AI was used. https://x.com/ashen_one/status/2123230920626884849
+I created this with Android Studio and Claude Code, which did require computer. Would you rather have waited way longer for someone to create ALL of this, or use it now? This might have taken months or years to get this far if no AI was used. https://x.com/ashen_one/status/2123230920626884849
 
 ### Is this safe?
 Ya. The full source code is right here in this repo, so anyone can check what it does.
