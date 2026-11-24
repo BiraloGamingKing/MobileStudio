@@ -17,6 +17,7 @@ import android.widget.TextView
 import android.widget.Toast
 import com.exampletest.mobilestudiotest.ai.ClaudeAssistant
 import com.exampletest.mobilestudiotest.ai.ForgeCommandEngine
+import com.exampletest.mobilestudiotest.ai.ForgeGuiMcpClient
 import com.exampletest.mobilestudiotest.ai.McpServer
 import com.exampletest.mobilestudiotest.ai.StudioTools
 import com.exampletest.mobilestudiotest.core.OutputLog
@@ -33,6 +34,10 @@ class AssistantPanel(ctx: Context, private val studio: Studio) : LinearLayout(ct
     private val prefs = ctx.getSharedPreferences("ai_assistant", Context.MODE_PRIVATE)
     private val tools = StudioTools(studio)
     private val assistant = ClaudeAssistant(ctx.applicationContext, tools)
+    private val forgeGui = ForgeGuiMcpClient(ctx.applicationContext)
+    private var forgeGuiStatus = "Not connected"
+    private var forgeGuiTools: List<String> = emptyList()
+    @Volatile private var forgeGuiBusy = false
     private val mcp = McpServer(tools, prefs.getString("mcpToken", null)).also { prefs.edit().putString("mcpToken", it.token).apply() }
 
     private var page = "Chat"
@@ -72,7 +77,7 @@ class AssistantPanel(ctx: Context, private val studio: Studio) : LinearLayout(ct
 
     private fun build() {
         tabs.removeAllViews()
-        for ((p, label) in listOf("Forge" to "FORGE", "Chat" to "Chat", "Connect" to "Connect")) {
+        for ((p, label) in listOf("Forge" to "FORGE", "ForgeGUI" to "ForgeGUI", "Chat" to "Chat", "Connect" to "Connect")) {
             tabs.addView(mt(label, 13f, if (p == page) Ui.TEXT else Ui.DIM, p == page).apply {
                 gravity = Gravity.CENTER
                 setPadding(0, Ui.dp(context, 8f), 0, Ui.dp(context, 8f))
@@ -81,7 +86,7 @@ class AssistantPanel(ctx: Context, private val studio: Studio) : LinearLayout(ct
             }, Ui.lp(0, Ui.WRAP, 1f))
         }
         content.removeAllViews()
-        when (page) { "Forge" -> buildForge(); "Chat" -> buildChat(); else -> buildConnect() }
+        when (page) { "Forge" -> buildForge(); "ForgeGUI" -> buildForgeGui(); "Chat" -> buildChat(); else -> buildConnect() }
     }
 
     // ------------------------------------------------------------------ FORGE offline builder
@@ -503,6 +508,103 @@ class AssistantPanel(ctx: Context, private val studio: Studio) : LinearLayout(ct
                 d2.dismiss(); assistant.effort = efforts[w]; refreshButtons()
             }.show()
         }.show()
+    }
+
+
+    // ------------------------------------------------------------------ ForgeGUI account connector
+
+    private fun buildForgeGui() {
+        val body = LinearLayout(context).apply {
+            orientation = VERTICAL
+            setPadding(Ui.dp(context, 12f), Ui.dp(context, 10f), Ui.dp(context, 12f), Ui.dp(context, 14f))
+        }
+        content.addView(ScrollView(context).apply { addView(body); isFillViewport = true }, Ui.lp(Ui.MATCH, 0, 1f))
+        body.addView(mt("ForgeGUI · Account Connector", 16f, Ui.TEXT, true))
+        body.addView(mt(
+            "Connect your ForgeGUI MCP account to MobileStudio. The key is encrypted with Android Keystore and kept on this phone; it is not written to GitHub or shown in logs.",
+            12f, Ui.DIM
+        ).apply { setPadding(0, Ui.dp(context, 5f), 0, Ui.dp(context, 10f)) })
+
+        val saved = forgeGui.hasKey()
+        body.addView(mt(if (saved) "Key saved on this device" else "No ForgeGUI key connected", 13f,
+            if (saved) Ui.PLAY else Ui.DIM, true))
+        body.addView(mt(forgeGuiStatus, 12f, if (forgeGuiBusy) Ui.ACCENT else Ui.DIM).apply {
+            setPadding(0, Ui.dp(context, 6f), 0, Ui.dp(context, 6f))
+        })
+
+        if (!saved) {
+            val keyInput = Ui.input(context, "", "Paste ForgeGUI MCP API key", multiLine = false).apply {
+                inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+            }
+            body.addView(keyInput, Ui.lp(Ui.MATCH, Ui.WRAP).apply { topMargin = Ui.dp(context, 8f) })
+            body.addView(primary("Connect and verify") {
+                val key = keyInput.text.toString().trim()
+                if (key.isBlank()) {
+                    forgeGuiStatus = "Paste your key first."
+                    build()
+                } else {
+                    verifyForgeGui(key, saveOnSuccess = true)
+                }
+            }, Ui.lp(Ui.MATCH, Ui.WRAP).apply { topMargin = Ui.dp(context, 8f) })
+        } else {
+            body.addView(primary(if (forgeGuiBusy) "Checking…" else "Verify connection") {
+                if (!forgeGuiBusy) {
+                    val key = forgeGui.savedKey()
+                    if (key.isNullOrBlank()) {
+                        forgeGuiStatus = "Saved key could not be decrypted. Remove it and connect again."
+                        build()
+                    } else verifyForgeGui(key, saveOnSuccess = false)
+                }
+            }, Ui.lp(Ui.MATCH, Ui.WRAP).apply { topMargin = Ui.dp(context, 8f) })
+            body.addView(Ui.button(context, "Disconnect and remove saved key", Ui.STOP) {
+                Dialogs.confirm(context, "Disconnect ForgeGUI", "This removes the saved ForgeGUI key from this device. It does not revoke the key in your ForgeGUI account.", "Disconnect") {
+                    forgeGui.removeKey()
+                    forgeGuiTools = emptyList()
+                    forgeGuiStatus = "Not connected"
+                    build()
+                }
+            }, Ui.lp(Ui.MATCH, Ui.WRAP).apply { topMargin = Ui.dp(context, 6f) })
+        }
+
+        body.addView(mt("Required for this free check: library:read. This test only discovers tools and searches the library; it does not generate, publish, or spend credits.", 11f, Ui.DIM).apply {
+            setPadding(0, Ui.dp(context, 10f), 0, Ui.dp(context, 6f))
+        })
+        if (forgeGuiTools.isNotEmpty()) {
+            body.addView(mt("Available ForgeGUI tools", 13f, Ui.TEXT, true).apply {
+                setPadding(0, Ui.dp(context, 10f), 0, Ui.dp(context, 5f))
+            })
+            body.addView(mt(forgeGuiTools.take(18).joinToString(" · "), 11f, Ui.DIM))
+        }
+        body.addView(Ui.button(context, "Open ForgeGUI account settings") {
+            openUrl("https://forgegui.com")
+        }, Ui.lp(Ui.WRAP, Ui.WRAP).apply { topMargin = Ui.dp(context, 12f) })
+        body.addView(mt("Important: connecting ForgeGUI does not automatically import assets into the open Roblox place. Generated images, models and other files need their own review and supported import step.", 11f, Ui.DIM).apply {
+            setPadding(0, Ui.dp(context, 12f), 0, 0)
+        })
+    }
+
+    private fun verifyForgeGui(key: String, saveOnSuccess: Boolean) {
+        if (forgeGuiBusy) return
+        forgeGuiBusy = true
+        forgeGuiStatus = "Checking ForgeGUI account with a free, read-only request…"
+        build()
+        Thread({
+            val result = forgeGui.verify(key)
+            post {
+                forgeGuiBusy = false
+                forgeGuiStatus = result.message
+                forgeGuiTools = result.tools
+                if (result.success && saveOnSuccess) {
+                    try {
+                        forgeGui.saveKey(key)
+                        forgeGuiStatus = result.message + " Key saved securely on this phone."
+                    } catch (_: Exception) {
+                        forgeGuiStatus = "Connected, but the key could not be saved securely. Please try again."
+                    }
+                }
+                build()
+            }
+        }, "ForgeGUI account verification").start()
     }
 
     // ------------------------------------------------------------------ MCP (Connect page)
