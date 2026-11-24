@@ -146,11 +146,11 @@ class AssistantPanel(ctx: Context, private val studio: Studio) : LinearLayout(ct
                         when (event) {
                             is ClaudeAssistant.Event.Status -> result.text = "FORGE AI: ${event.text}"
                             is ClaudeAssistant.Event.TextDelta -> result.append(event.text)
-                            is ClaudeAssistant.Event.ToolCall -> result.append("\\n\\n[${event.name}] ${if (event.isError) "ERROR: " else ""}${event.result.take(500)}")
-                            is ClaudeAssistant.Event.Failed -> result.append("\\n\\nFailed: ${event.text}")
-                            is ClaudeAssistant.Event.Notice -> result.append("\\n\\n${event.text}")
+                            is ClaudeAssistant.Event.ToolCall -> result.append("\n\n[${event.name}] ${if (event.isError) "ERROR: " else ""}${event.result.take(500)}")
+                            is ClaudeAssistant.Event.Failed -> result.append("\n\nFailed: ${event.text}")
+                            is ClaudeAssistant.Event.Notice -> result.append("\n\n${event.text}")
                             ClaudeAssistant.Event.BlockEnd -> Unit
-                            ClaudeAssistant.Event.Done -> result.append("\\n\\nFORGE AI finished.")
+                            ClaudeAssistant.Event.Done -> result.append("\n\nFORGE AI finished.")
                         }
                     }
                 }
