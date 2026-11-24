@@ -172,10 +172,12 @@ class ForgeGuiMcpClient(private val context: Context) {
             setRequestProperty("Authorization", "Bearer " + key)
             setRequestProperty("Content-Type", "application/json")
             setRequestProperty("Accept", "application/json, text/event-stream")
-            setRequestProperty("MCP-Protocol-Version", PROTOCOL_VERSION)
+            if (!session.isNullOrBlank()) {
+                setRequestProperty("MCP-Protocol-Version", PROTOCOL_VERSION)
+                setRequestProperty("MCP-Session-Id", session)
+            }
             setRequestProperty("X-ForgeGUI-Plugin-Version", "1.9.7")
             setRequestProperty("X-ForgeGUI-Plugin-Client", "mobile-studio")
-            if (!session.isNullOrBlank()) setRequestProperty("MCP-Session-Id", session)
         }
         try {
             connection.outputStream.use { it.write(payload.toString().toByteArray(Charsets.UTF_8)) }
@@ -183,12 +185,13 @@ class ForgeGuiMcpClient(private val context: Context) {
             if (code !in 200..299) throw HttpFailure(code)
             val newSession = connection.getHeaderField("MCP-Session-Id") ?: session
             val stream = if (code >= 400) connection.errorStream else connection.inputStream
+            val contentType = connection.contentType.orEmpty()
             val raw = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
             if (raw.isBlank()) {
                 if (allowEmpty) return Pair(JSONObject(), newSession)
                 throw IllegalStateException("Empty MCP response")
             }
-            val body = if (raw.trimStart().startsWith("data:") || raw.contains("\nevent:")) {
+            val body = if (contentType.contains("text/event-stream", ignoreCase = true) || raw.lineSequence().any { it.startsWith("data:") }) {
                 raw.lineSequence()
                     .filter { it.startsWith("data:") }
                     .map { it.removePrefix("data:").trim() }
