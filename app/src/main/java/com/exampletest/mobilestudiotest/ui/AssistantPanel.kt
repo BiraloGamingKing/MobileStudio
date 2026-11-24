@@ -122,6 +122,44 @@ class AssistantPanel(ctx: Context, private val studio: Studio) : LinearLayout(ct
             }, "FORGE offline build").start()
         }.apply { setTextColor(0xFFFFFFFF.toInt()) }
         body.addView(buildButton, Ui.lp(Ui.MATCH, Ui.WRAP))
+        val aiBuildButton = Ui.button(context, "Build custom command with AI", Ui.PLAY) {
+            if (requestBusy()) {
+                result.text = "FORGE AI is already working. Wait for it to finish."
+                return@button
+            }
+            if (assistant.apiKey.isBlank()) {
+                result.text = "Custom AI building needs the existing Chat API key. Offline templates above still work without it."
+                editKey()
+                return@button
+            }
+            val command = prompt.text.toString().trim()
+            if (command.isEmpty()) {
+                result.text = "Pehle apna custom build command likho."
+                return@button
+            }
+            result.text = "FORGE AI: planning your build…"
+            Thread({
+                assistant.send(
+                    "FORGE BUILD REQUEST: ${command}\n\nBuild this directly in the currently open place, not just explain how. First inspect the existing place with get_tree or get_selection when useful. Then create the requested objects, UI, and scripts using the available Studio tools. Keep changes grouped in clearly named Models/ScreenGuis, place new world builds near the existing spawn or selected object, and report exactly what was created. If something cannot be implemented with the available tools, say so clearly."
+                ) { event ->
+                    post {
+                        when (event) {
+                            is ClaudeAssistant.Event.Status -> result.text = "FORGE AI: ${event.text}"
+                            is ClaudeAssistant.Event.TextDelta -> result.append(event.text)
+                            is ClaudeAssistant.Event.ToolCall -> result.append("\\n\\n[${event.name}] ${if (event.isError) "ERROR: " else ""}${event.result.take(500)}")
+                            is ClaudeAssistant.Event.Failed -> result.append("\\n\\nFailed: ${event.text}")
+                            is ClaudeAssistant.Event.Notice -> result.append("\\n\\n${event.text}")
+                            ClaudeAssistant.Event.BlockEnd -> Unit
+                            ClaudeAssistant.Event.Done -> result.append("\\n\\nFORGE AI finished.")
+                        }
+                    }
+                }
+            }, "FORGE custom AI build").start()
+        }.apply { setTextColor(0xFFFFFFFF.toInt()) }
+        body.addView(aiBuildButton, Ui.lp(Ui.MATCH, Ui.WRAP).apply { topMargin = Ui.dp(context, 6f) })
+        body.addView(mt("AI mode uses the configured Chat API provider and may incur provider charges. Offline template mode above needs no key or credits.", 11f, Ui.DIM).apply {
+            setPadding(0, Ui.dp(context, 5f), 0, Ui.dp(context, 8f))
+        })
         body.addView(mt("Quick commands", 13f, Ui.TEXT, true).apply { setPadding(0, Ui.dp(context, 14f), 0, Ui.dp(context, 5f)) })
         for (example in listOf("Create a shop GUI", "Make an inventory menu", "Build a player HUD", "Create a main menu with a button", "Build a dark arena map", "Create an obby course", "Build a small house", "Create a tall tower", "Build a bridge")) {
             body.addView(chip(example) {
@@ -133,6 +171,8 @@ class AssistantPanel(ctx: Context, private val studio: Studio) : LinearLayout(ct
             setPadding(0, Ui.dp(context, 12f), 0, 0)
         })
     }
+
+    private fun requestBusy(): Boolean = assistant.busy
 
     // ------------------------------------------------------------------ chat
 
