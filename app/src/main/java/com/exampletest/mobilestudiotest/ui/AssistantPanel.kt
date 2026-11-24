@@ -129,7 +129,7 @@ class AssistantPanel(ctx: Context, private val studio: Studio) : LinearLayout(ct
                 return@button
             }
             runForgeAi(
-                "FORGE BUILD REQUEST: ${command}\n\nBuild this directly in the currently open place, not just explain how. Inspect the existing place and selection first. Plan the work, then create the requested objects, UI, and scripts using available Studio tools. Keep new work grouped in clearly named Models/ScreenGuis. Preserve existing content unless I explicitly ask you to replace or delete it. Place new world builds near the existing spawn or selected object. After building, inspect the Output for errors, read back any scripts you wrote, fix errors you can identify, and check the result again. Clearly distinguish what was created from what could not be verified."
+                "FORGE BUILD REQUEST: ${command}\n\nAct as an autonomous Roblox game-building agent. Build the requested result in the currently open place; do not answer with a tutorial. First inspect the place and selection. Convert the request into a checklist of concrete deliverables (world, models, UI, gameplay, scripts, data flow). Then execute in small, logically separated stages: create the core structure, add visuals, add behavior, connect systems, and verify. Use multiple focused tool calls rather than one enormous script. After each stage, inspect the relevant Explorer paths and handle tool errors before continuing. Use real Roblox Luau and supported APIs; do not invent APIs. Keep every generated system inside a clearly named root Model/Folder/ScreenGui. Preserve existing content and avoid destructive edits unless explicitly requested. For scripts, use correct server/client locations and explain any feature that requires Play mode or external Roblox services. Finish by checking Output, reading back changed scripts, checking the final tree, and repairing concrete errors. If the request is too large, complete a functional first slice and list the remaining checklist items honestly. Never claim runtime testing unless Play mode was actually tested."
             , result, "FORGE custom AI build"
             )
         }.apply { setTextColor(0xFFFFFFFF.toInt()) }
@@ -158,11 +158,11 @@ class AssistantPanel(ctx: Context, private val studio: Studio) : LinearLayout(ct
         body.addView(mt("AI mode uses the configured Chat API provider and may incur provider charges. Offline template mode above needs no key or credits.", 11f, Ui.DIM).apply {
             setPadding(0, Ui.dp(context, 5f), 0, Ui.dp(context, 8f))
         })
-        body.addView(mt("Quick commands", 13f, Ui.TEXT, true).apply { setPadding(0, Ui.dp(context, 14f), 0, Ui.dp(context, 5f)) })
-        for (example in listOf("Create a shop GUI", "Make an inventory menu", "Build a player HUD", "Create a main menu with a button", "Build a dark arena map", "Create an obby course", "Build a small house", "Create a tall tower", "Build a bridge")) {
+        body.addView(mt("AI command examples", 13f, Ui.TEXT, true).apply { setPadding(0, Ui.dp(context, 14f), 0, Ui.dp(context, 5f)) })
+        for (example in listOf("Create a complete simulator with coins, upgrades and rebirths", "Build a dark anime-style open world with a spawn hub and enemy zones", "Create an inventory, hotbar and working item pickup system", "Make a boss fight with health bar, attacks and rewards", "Build a 10-stage obby with checkpoints and finish rewards", "Create a polished shop GUI connected to player coins")) {
             body.addView(chip(example) {
                 prompt.setText(example)
-                buildButton.performClick()
+                aiBuildButton.performClick()
             }, Ui.lp(Ui.WRAP, Ui.WRAP).apply { bottomMargin = Ui.dp(context, 6f) })
         }
         body.addView(mt("GUI templates are placed in StarterGui. 3D layouts are placed in Workspace.FORGE_Generated. Press Play to preview GUIs; inspect maps in Explorer.", 11f, Ui.DIM).apply {
