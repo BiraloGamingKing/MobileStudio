@@ -16,6 +16,9 @@ object ForgeCommandEngine {
             listOf("inventory", "backpack", "items").any { it in request } -> "Inventory"
             listOf("hud", "health bar", "coins", "coin counter", "status").any { it in request } -> "HUD"
             listOf("obby", "obstacle course", "parkour").any { it in request } -> "Obby"
+            listOf("bridge", "overpass").any { it in request } -> "Bridge"
+            listOf("tower", "skyscraper", "watchtower").any { it in request } -> "Tower"
+            listOf("house", "home", "cabin").any { it in request } -> "House"
             listOf("arena", "battle map", "pvp map").any { it in request } -> "Arena"
             listOf("map", "level", "world", "platform").any { it in request } -> "Map"
             listOf("gui", "interface", "menu", "button", "screen").any { it in request } -> "Menu"
@@ -36,7 +39,7 @@ object ForgeCommandEngine {
         val safeTitle = escape(title)
         val safeButton = escape(button)
         val guiName = "Forge${kind}Gui"
-        val script = if (kind in setOf("Map", "Arena", "Obby")) ForgeWorldTemplates.script(kind) else """
+        val script = if (kind in setOf("Map", "Arena", "Obby", "House", "Tower", "Bridge")) ForgeWorldTemplates.script(kind) else """
 local StarterGui = game:GetService("StarterGui")
 local old = StarterGui:FindFirstChild("$guiName")
 if old then old:Destroy() end
@@ -118,7 +121,7 @@ client.Parent = panel
 
 print("FORGE created $guiName in StarterGui. Press Play to preview it.")
 """.trimIndent()
-        val description = if (kind in setOf("Map", "Arena", "Obby")) "Built a starter 3D $kind layout in Workspace.FORGE_Generated. Open Explorer to inspect it." else "Built a dark $kind interface with a sample button. Find it under StarterGui and press Play to preview."
+        val description = if (kind in setOf("Map", "Arena", "Obby", "House", "Tower", "Bridge")) "Built a starter 3D $kind in Workspace.FORGE_Generated. Open Explorer to inspect it." else "Built a dark $kind interface with a sample button. Find it under StarterGui and press Play to preview."
         return BuildPlan("$kind created", description, script)
     }
 
