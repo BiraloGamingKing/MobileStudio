@@ -118,7 +118,8 @@ client.Parent = panel
 
 print("FORGE created $guiName in StarterGui. Press Play to preview it.")
 """.trimIndent()
-        return BuildPlan("$kind GUI created", "Built a dark $kind interface with a working sample button. Find it under StarterGui and press Play to preview.", script)
+        val description = if (kind in setOf("Map", "Arena", "Obby")) "Built a starter 3D $kind layout in Workspace.FORGE_Generated. Open Explorer to inspect it." else "Built a dark $kind interface with a sample button. Find it under StarterGui and press Play to preview."
+        return BuildPlan("$kind created", description, script)
     }
 
     private fun escape(value: String): String = value.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", " ")
