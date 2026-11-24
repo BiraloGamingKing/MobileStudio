@@ -15,6 +15,9 @@ object ForgeCommandEngine {
             listOf("shop", "store", "buy").any { it in request } -> "Shop"
             listOf("inventory", "backpack", "items").any { it in request } -> "Inventory"
             listOf("hud", "health bar", "coins", "coin counter", "status").any { it in request } -> "HUD"
+            listOf("obby", "obstacle course", "parkour").any { it in request } -> "Obby"
+            listOf("arena", "battle map", "pvp map").any { it in request } -> "Arena"
+            listOf("map", "level", "world", "platform").any { it in request } -> "Map"
             listOf("gui", "interface", "menu", "button", "screen").any { it in request } -> "Menu"
             else -> return null
         }
@@ -33,7 +36,7 @@ object ForgeCommandEngine {
         val safeTitle = escape(title)
         val safeButton = escape(button)
         val guiName = "Forge${kind}Gui"
-        val script = """
+        val script = if (kind in setOf("Map", "Arena", "Obby")) ForgeWorldTemplates.script(kind) else """
 local StarterGui = game:GetService("StarterGui")
 local old = StarterGui:FindFirstChild("$guiName")
 if old then old:Destroy() end
