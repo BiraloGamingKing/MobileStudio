@@ -16,6 +16,8 @@ import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import com.exampletest.mobilestudiotest.ai.ClaudeAssistant
+import com.exampletest.mobilestudiotest.ai.ForgeCommandEngine
+import com.exampletest.mobilestudiotest.ai.ForgeGuiMcpClient
 import com.exampletest.mobilestudiotest.ai.McpServer
 import com.exampletest.mobilestudiotest.ai.StudioTools
 import com.exampletest.mobilestudiotest.core.OutputLog
@@ -32,6 +34,10 @@ class AssistantPanel(ctx: Context, private val studio: Studio) : LinearLayout(ct
     private val prefs = ctx.getSharedPreferences("ai_assistant", Context.MODE_PRIVATE)
     private val tools = StudioTools(studio)
     private val assistant = ClaudeAssistant(ctx.applicationContext, tools)
+    private val forgeGui = ForgeGuiMcpClient(ctx.applicationContext)
+    private var forgeGuiStatus = "Not connected"
+    private var forgeGuiTools: List<String> = emptyList()
+    @Volatile private var forgeGuiBusy = false
     private val mcp = McpServer(tools, prefs.getString("mcpToken", null)).also { prefs.edit().putString("mcpToken", it.token).apply() }
 
     private var page = "Chat"
@@ -71,7 +77,7 @@ class AssistantPanel(ctx: Context, private val studio: Studio) : LinearLayout(ct
 
     private fun build() {
         tabs.removeAllViews()
-        for ((p, label) in listOf("Chat" to "Chat", "Connect" to "Connect an AI app")) {
+        for ((p, label) in listOf("Forge" to "FORGE", "ForgeGUI" to "ForgeGUI", "Chat" to "Chat", "Connect" to "Connect")) {
             tabs.addView(mt(label, 13f, if (p == page) Ui.TEXT else Ui.DIM, p == page).apply {
                 gravity = Gravity.CENTER
                 setPadding(0, Ui.dp(context, 8f), 0, Ui.dp(context, 8f))
@@ -80,7 +86,121 @@ class AssistantPanel(ctx: Context, private val studio: Studio) : LinearLayout(ct
             }, Ui.lp(0, Ui.WRAP, 1f))
         }
         content.removeAllViews()
-        if (page == "Chat") buildChat() else buildConnect()
+        when (page) { "Forge" -> buildForge(); "ForgeGUI" -> buildForgeGui(); "Chat" -> buildChat(); else -> buildConnect() }
+    }
+
+    // ------------------------------------------------------------------ FORGE offline builder
+
+    private fun buildForge() {
+        val body = LinearLayout(context).apply {
+            orientation = VERTICAL
+            setPadding(Ui.dp(context, 12f), Ui.dp(context, 10f), Ui.dp(context, 12f), Ui.dp(context, 12f))
+        }
+        content.addView(ScrollView(context).apply { addView(body); isFillViewport = true }, Ui.lp(Ui.MATCH, 0, 1f))
+        body.addView(mt("FORGE · Offline Builder", 16f, Ui.TEXT, true))
+        body.addView(mt("No API key, no credits, no internet required. Describe a basic Roblox GUI and FORGE will build it in the open place using Mobile Studio's Luau engine.", 12f, Ui.DIM).apply {
+            setPadding(0, Ui.dp(context, 5f), 0, Ui.dp(context, 10f))
+        })
+        val prompt = Ui.input(context, "", "Example: create a shop GUI", multiLine = true).apply { minLines = 2; maxLines = 4 }
+        body.addView(prompt, Ui.lp(Ui.MATCH, Ui.WRAP))
+        val result = mt("Supported: shop GUI, inventory GUI, HUD, menu, 3D map, arena, obby, house, tower, and bridge.", 12f, Ui.DIM).apply {
+            setPadding(0, Ui.dp(context, 8f), 0, Ui.dp(context, 8f))
+        }
+        body.addView(result, Ui.lp(Ui.MATCH, Ui.WRAP))
+        val buildButton = Ui.button(context, "Build with FORGE", Ui.ACCENT) {
+            val request = prompt.text.toString().trim()
+            if (request.isEmpty()) {
+                result.text = "Pehle command likho, jaise: create a shop GUI"
+                return@button
+            }
+            val plan = ForgeCommandEngine.build(request)
+            if (plan == null) {
+                result.text = "Is command ka offline template abhi available nahi hai. Try: shop GUI, inventory GUI, HUD, or menu."
+                return@button
+            }
+            result.text = "Building \${plan.title}…"
+            Thread({
+                val outcome = tools.call("run_luau", mapOf("code" to plan.code))
+                post {
+                    result.text = if (outcome.isError) "Build failed: \${outcome.text}" else "\${plan.description}\n\n\${outcome.text}"
+                }
+            }, "FORGE offline build").start()
+        }.apply { setTextColor(0xFFFFFFFF.toInt()) }
+        body.addView(buildButton, Ui.lp(Ui.MATCH, Ui.WRAP))
+        val aiBuildButton = Ui.button(context, "Build custom command with AI", Ui.PLAY) {
+            val command = prompt.text.toString().trim()
+            if (command.isEmpty()) {
+                result.text = "Pehle apna custom build command likho."
+                return@button
+            }
+            runForgeAi(
+                "FORGE BUILD REQUEST: ${command}\n\nAct as an autonomous Roblox game-building agent. Build the requested result in the currently open place; do not answer with a tutorial. First inspect the place and selection. Convert the request into a checklist of concrete deliverables (world, models, UI, gameplay, scripts, data flow). Then execute in small, logically separated stages: create the core structure, add visuals, add behavior, connect systems, and verify. Use multiple focused tool calls rather than one enormous script. After each stage, inspect the relevant Explorer paths and handle tool errors before continuing. Use real Roblox Luau and supported APIs; do not invent APIs. Keep every generated system inside a clearly named root Model/Folder/ScreenGui. Preserve existing content and avoid destructive edits unless explicitly requested. For scripts, use correct server/client locations and explain any feature that requires Play mode or external Roblox services. Finish by checking Output, reading back changed scripts, checking the final tree, and repairing concrete errors. If the request is too large, complete a functional first slice and list the remaining checklist items honestly. Never claim runtime testing unless Play mode was actually tested."
+            , result, "FORGE custom AI build"
+            )
+        }.apply { setTextColor(0xFFFFFFFF.toInt()) }
+        body.addView(aiBuildButton, Ui.lp(Ui.MATCH, Ui.WRAP).apply { topMargin = Ui.dp(context, 6f) })
+        val actionRow = LinearLayout(context).apply { orientation = HORIZONTAL }
+        val repairButton = Ui.button(context, "Repair last build", Ui.ACCENT) {
+            runForgeAi(
+                "FORGE REPAIR REQUEST: Inspect the recent Output using get_output and inspect the objects/scripts from the most recent FORGE build. Identify actual errors or incomplete parts, make the smallest safe fixes, then re-check Output and relevant scripts. Do not delete or rebuild unrelated existing content. If there is no previous build or no actionable error, explain what you found.",
+                result, "FORGE repair"
+            )
+        }
+        actionRow.addView(repairButton, Ui.lp(0, Ui.WRAP, 1f))
+        val modifyButton = Ui.button(context, "Modify selected", Ui.PLAY) {
+            val command = prompt.text.toString().trim()
+            if (command.isEmpty()) {
+                result.text = "Selected object ko kaise modify karna hai, woh command likho."
+                return@button
+            }
+            runForgeAi(
+                "FORGE SELECTION EDIT: First call get_selection to identify the selected instance(s). Apply this requested change to the selected object(s) only: ${command}. If nothing is selected, ask the user to select an object. Preserve unrelated objects and verify the changed properties afterward.",
+                result, "FORGE selection edit"
+            )
+        }
+        actionRow.addView(modifyButton, Ui.lp(0, Ui.WRAP, 1f).apply { leftMargin = Ui.dp(context, 6f) })
+        body.addView(actionRow, Ui.lp(Ui.MATCH, Ui.WRAP).apply { topMargin = Ui.dp(context, 6f) })
+        body.addView(mt("AI mode uses the configured Chat API provider and may incur provider charges. Offline template mode above needs no key or credits.", 11f, Ui.DIM).apply {
+            setPadding(0, Ui.dp(context, 5f), 0, Ui.dp(context, 8f))
+        })
+        body.addView(mt("AI command examples", 13f, Ui.TEXT, true).apply { setPadding(0, Ui.dp(context, 14f), 0, Ui.dp(context, 5f)) })
+        for (example in listOf("Create a complete simulator with coins, upgrades and rebirths", "Build a dark anime-style open world with a spawn hub and enemy zones", "Create an inventory, hotbar and working item pickup system", "Make a boss fight with health bar, attacks and rewards", "Build a 10-stage obby with checkpoints and finish rewards", "Create a polished shop GUI connected to player coins")) {
+            body.addView(chip(example) {
+                prompt.setText(example)
+                aiBuildButton.performClick()
+            }, Ui.lp(Ui.WRAP, Ui.WRAP).apply { bottomMargin = Ui.dp(context, 6f) })
+        }
+        body.addView(mt("GUI templates are placed in StarterGui. 3D layouts are placed in Workspace.FORGE_Generated. Press Play to preview GUIs; inspect maps in Explorer.", 11f, Ui.DIM).apply {
+            setPadding(0, Ui.dp(context, 12f), 0, 0)
+        })
+    }
+
+    private fun runForgeAi(command: String, result: TextView, threadName: String) {
+        if (assistant.busy) {
+            result.text = "FORGE AI is already working. Wait for it to finish."
+            return
+        }
+        if (assistant.apiKey.isBlank()) {
+            result.text = "Custom AI needs the API key configured in Chat. Offline templates still work without it."
+            editKey()
+            return
+        }
+        result.text = "FORGE AI: planning…"
+        Thread({
+            assistant.send(command) { event ->
+                post {
+                    when (event) {
+                        is ClaudeAssistant.Event.Status -> result.text = "FORGE AI: ${event.text}"
+                        is ClaudeAssistant.Event.TextDelta -> result.append(event.text)
+                        is ClaudeAssistant.Event.ToolCall -> result.append("\n\n[${event.name}] ${if (event.isError) "ERROR: " else ""}${event.result.take(700)}")
+                        is ClaudeAssistant.Event.Failed -> result.append("\n\nFailed: ${event.text}")
+                        is ClaudeAssistant.Event.Notice -> result.append("\n\n${event.text}")
+                        ClaudeAssistant.Event.BlockEnd -> Unit
+                        ClaudeAssistant.Event.Done -> result.append("\n\nFORGE AI finished.")
+                    }
+                }
+            }
+        }, threadName).start()
     }
 
     // ------------------------------------------------------------------ chat
@@ -388,6 +508,103 @@ class AssistantPanel(ctx: Context, private val studio: Studio) : LinearLayout(ct
                 d2.dismiss(); assistant.effort = efforts[w]; refreshButtons()
             }.show()
         }.show()
+    }
+
+
+    // ------------------------------------------------------------------ ForgeGUI account connector
+
+    private fun buildForgeGui() {
+        val body = LinearLayout(context).apply {
+            orientation = VERTICAL
+            setPadding(Ui.dp(context, 12f), Ui.dp(context, 10f), Ui.dp(context, 12f), Ui.dp(context, 14f))
+        }
+        content.addView(ScrollView(context).apply { addView(body); isFillViewport = true }, Ui.lp(Ui.MATCH, 0, 1f))
+        body.addView(mt("ForgeGUI · Account Connector", 16f, Ui.TEXT, true))
+        body.addView(mt(
+            "Connect your ForgeGUI MCP account to MobileStudio. The key is encrypted with Android Keystore and kept on this phone; it is not written to GitHub or shown in logs.",
+            12f, Ui.DIM
+        ).apply { setPadding(0, Ui.dp(context, 5f), 0, Ui.dp(context, 10f)) })
+
+        val saved = forgeGui.hasKey()
+        body.addView(mt(if (saved) "Key saved on this device" else "No ForgeGUI key connected", 13f,
+            if (saved) Ui.PLAY else Ui.DIM, true))
+        body.addView(mt(forgeGuiStatus, 12f, if (forgeGuiBusy) Ui.ACCENT else Ui.DIM).apply {
+            setPadding(0, Ui.dp(context, 6f), 0, Ui.dp(context, 6f))
+        })
+
+        if (!saved) {
+            val keyInput = Ui.input(context, "", "Paste ForgeGUI MCP API key", multiLine = false).apply {
+                inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+            }
+            body.addView(keyInput, Ui.lp(Ui.MATCH, Ui.WRAP).apply { topMargin = Ui.dp(context, 8f) })
+            body.addView(primary("Connect and verify") {
+                val key = keyInput.text.toString().trim()
+                if (key.isBlank()) {
+                    forgeGuiStatus = "Paste your key first."
+                    build()
+                } else {
+                    verifyForgeGui(key, saveOnSuccess = true)
+                }
+            }, Ui.lp(Ui.MATCH, Ui.WRAP).apply { topMargin = Ui.dp(context, 8f) })
+        } else {
+            body.addView(primary(if (forgeGuiBusy) "Checking…" else "Verify connection") {
+                if (!forgeGuiBusy) {
+                    val key = forgeGui.savedKey()
+                    if (key.isNullOrBlank()) {
+                        forgeGuiStatus = "Saved key could not be decrypted. Remove it and connect again."
+                        build()
+                    } else verifyForgeGui(key, saveOnSuccess = false)
+                }
+            }, Ui.lp(Ui.MATCH, Ui.WRAP).apply { topMargin = Ui.dp(context, 8f) })
+            body.addView(Ui.button(context, "Disconnect and remove saved key", Ui.STOP) {
+                Dialogs.confirm(context, "Disconnect ForgeGUI", "This removes the saved ForgeGUI key from this device. It does not revoke the key in your ForgeGUI account.", "Disconnect") {
+                    forgeGui.removeKey()
+                    forgeGuiTools = emptyList()
+                    forgeGuiStatus = "Not connected"
+                    build()
+                }
+            }, Ui.lp(Ui.MATCH, Ui.WRAP).apply { topMargin = Ui.dp(context, 6f) })
+        }
+
+        body.addView(mt("Required for this free check: library:read. This test only discovers tools and searches the library; it does not generate, publish, or spend credits.", 11f, Ui.DIM).apply {
+            setPadding(0, Ui.dp(context, 10f), 0, Ui.dp(context, 6f))
+        })
+        if (forgeGuiTools.isNotEmpty()) {
+            body.addView(mt("Available ForgeGUI tools", 13f, Ui.TEXT, true).apply {
+                setPadding(0, Ui.dp(context, 10f), 0, Ui.dp(context, 5f))
+            })
+            body.addView(mt(forgeGuiTools.take(18).joinToString(" · "), 11f, Ui.DIM))
+        }
+        body.addView(Ui.button(context, "Open ForgeGUI account settings") {
+            openUrl("https://forgegui.com")
+        }, Ui.lp(Ui.WRAP, Ui.WRAP).apply { topMargin = Ui.dp(context, 12f) })
+        body.addView(mt("Important: connecting ForgeGUI does not automatically import assets into the open Roblox place. Generated images, models and other files need their own review and supported import step.", 11f, Ui.DIM).apply {
+            setPadding(0, Ui.dp(context, 12f), 0, 0)
+        })
+    }
+
+    private fun verifyForgeGui(key: String, saveOnSuccess: Boolean) {
+        if (forgeGuiBusy) return
+        forgeGuiBusy = true
+        forgeGuiStatus = "Checking ForgeGUI account with a free, read-only request…"
+        build()
+        Thread({
+            val result = forgeGui.verify(key)
+            post {
+                forgeGuiBusy = false
+                forgeGuiStatus = result.message
+                forgeGuiTools = result.tools
+                if (result.success && saveOnSuccess) {
+                    try {
+                        forgeGui.saveKey(key)
+                        forgeGuiStatus = result.message + " Key saved securely on this phone."
+                    } catch (_: Exception) {
+                        forgeGuiStatus = "Connected, but the key could not be saved securely. Please try again."
+                    }
+                }
+                build()
+            }
+        }, "ForgeGUI account verification").start()
     }
 
     // ------------------------------------------------------------------ MCP (Connect page)
