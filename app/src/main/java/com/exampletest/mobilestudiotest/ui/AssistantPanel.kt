@@ -98,7 +98,7 @@ class AssistantPanel(ctx: Context, private val studio: Studio) : LinearLayout(ct
         })
         val prompt = Ui.input(context, "", "Example: create a shop GUI", multiLine = true).apply { minLines = 2; maxLines = 4 }
         body.addView(prompt, Ui.lp(Ui.MATCH, Ui.WRAP))
-        val result = mt("Supported: shop GUI, inventory GUI, HUD, menu, interface, button.", 12f, Ui.DIM).apply {
+        val result = mt("Supported: shop GUI, inventory GUI, HUD, menu, 3D map, arena, and obby.", 12f, Ui.DIM).apply {
             setPadding(0, Ui.dp(context, 8f), 0, Ui.dp(context, 8f))
         }
         body.addView(result, Ui.lp(Ui.MATCH, Ui.WRAP))
@@ -123,13 +123,13 @@ class AssistantPanel(ctx: Context, private val studio: Studio) : LinearLayout(ct
         }.apply { setTextColor(0xFFFFFFFF.toInt()) }
         body.addView(buildButton, Ui.lp(Ui.MATCH, Ui.WRAP))
         body.addView(mt("Quick commands", 13f, Ui.TEXT, true).apply { setPadding(0, Ui.dp(context, 14f), 0, Ui.dp(context, 5f)) })
-        for (example in listOf("Create a shop GUI", "Make an inventory menu", "Build a player HUD", "Create a main menu with a button")) {
+        for (example in listOf("Create a shop GUI", "Make an inventory menu", "Build a player HUD", "Create a main menu with a button", "Build a dark arena map", "Create an obby course")) {
             body.addView(chip(example) {
                 prompt.setText(example)
                 buildButton.performClick()
             }, Ui.lp(Ui.WRAP, Ui.WRAP).apply { bottomMargin = Ui.dp(context, 6f) })
         }
-        body.addView(mt("Note: this first version creates a starter GUI template in StarterGui. Press Play to preview it. More templates and object-building commands will be added next.", 11f, Ui.DIM).apply {
+        body.addView(mt("GUI templates are placed in StarterGui. 3D layouts are placed in Workspace.FORGE_Generated. Press Play to preview GUIs; inspect maps in Explorer.", 11f, Ui.DIM).apply {
             setPadding(0, Ui.dp(context, 12f), 0, 0)
         })
     }
