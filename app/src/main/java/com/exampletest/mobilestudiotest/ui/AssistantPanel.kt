@@ -114,11 +114,9 @@ class AssistantPanel(ctx: Context, private val studio: Studio) : LinearLayout(ct
                 return@button
             }
             result.text = "Building \${plan.title}…"
-            isEnabled = false
             Thread({
                 val outcome = tools.call("run_luau", mapOf("code" to plan.code))
                 post {
-                    isEnabled = true
                     result.text = if (outcome.isError) "Build failed: \${outcome.text}" else "\${plan.description}\n\n\${outcome.text}"
                 }
             }, "FORGE offline build").start()
