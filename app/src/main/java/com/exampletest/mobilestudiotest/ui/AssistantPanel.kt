@@ -16,6 +16,7 @@ import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import com.exampletest.mobilestudiotest.ai.ClaudeAssistant
+import com.exampletest.mobilestudiotest.ai.ForgeCommandEngine
 import com.exampletest.mobilestudiotest.ai.McpServer
 import com.exampletest.mobilestudiotest.ai.StudioTools
 import com.exampletest.mobilestudiotest.core.OutputLog
@@ -71,7 +72,7 @@ class AssistantPanel(ctx: Context, private val studio: Studio) : LinearLayout(ct
 
     private fun build() {
         tabs.removeAllViews()
-        for ((p, label) in listOf("Chat" to "Chat", "Connect" to "Connect an AI app")) {
+        for ((p, label) in listOf("Forge" to "FORGE", "Chat" to "Chat", "Connect" to "Connect")) {
             tabs.addView(mt(label, 13f, if (p == page) Ui.TEXT else Ui.DIM, p == page).apply {
                 gravity = Gravity.CENTER
                 setPadding(0, Ui.dp(context, 8f), 0, Ui.dp(context, 8f))
@@ -80,7 +81,59 @@ class AssistantPanel(ctx: Context, private val studio: Studio) : LinearLayout(ct
             }, Ui.lp(0, Ui.WRAP, 1f))
         }
         content.removeAllViews()
-        if (page == "Chat") buildChat() else buildConnect()
+        when (page) { "Forge" -> buildForge(); "Chat" -> buildChat(); else -> buildConnect() }
+    }
+
+    // ------------------------------------------------------------------ FORGE offline builder
+
+    private fun buildForge() {
+        val body = LinearLayout(context).apply {
+            orientation = VERTICAL
+            setPadding(Ui.dp(context, 12f), Ui.dp(context, 10f), Ui.dp(context, 12f), Ui.dp(context, 12f))
+        }
+        content.addView(ScrollView(context).apply { addView(body); isFillViewport = true }, Ui.lp(Ui.MATCH, 0, 1f))
+        body.addView(mt("FORGE · Offline Builder", 16f, Ui.TEXT, true))
+        body.addView(mt("No API key, no credits, no internet required. Describe a basic Roblox GUI and FORGE will build it in the open place using Mobile Studio's Luau engine.", 12f, Ui.DIM).apply {
+            setPadding(0, Ui.dp(context, 5f), 0, Ui.dp(context, 10f))
+        })
+        val prompt = Ui.input(context, "", "Example: create a shop GUI", multiLine = true).apply { minLines = 2; maxLines = 4 }
+        body.addView(prompt, Ui.lp(Ui.MATCH, Ui.WRAP))
+        val result = mt("Supported: shop GUI, inventory GUI, HUD, menu, interface, button.", 12f, Ui.DIM).apply {
+            setPadding(0, Ui.dp(context, 8f), 0, Ui.dp(context, 8f))
+        }
+        body.addView(result, Ui.lp(Ui.MATCH, Ui.WRAP))
+        val buildButton = Ui.button(context, "Build with FORGE", Ui.ACCENT) {
+            val request = prompt.text.toString().trim()
+            if (request.isEmpty()) {
+                result.text = "Pehle command likho, jaise: create a shop GUI"
+                return@button
+            }
+            val plan = ForgeCommandEngine.build(request)
+            if (plan == null) {
+                result.text = "Is command ka offline template abhi available nahi hai. Try: shop GUI, inventory GUI, HUD, or menu."
+                return@button
+            }
+            result.text = "Building \${plan.title}…"
+            isEnabled = false
+            Thread({
+                val outcome = tools.call("run_luau", mapOf("code" to plan.code))
+                post {
+                    isEnabled = true
+                    result.text = if (outcome.isError) "Build failed: \${outcome.text}" else "\${plan.description}\n\n\${outcome.text}"
+                }
+            }, "FORGE offline build").start()
+        }.apply { setTextColor(0xFFFFFFFF.toInt()) }
+        body.addView(buildButton, Ui.lp(Ui.MATCH, Ui.WRAP))
+        body.addView(mt("Quick commands", 13f, Ui.TEXT, true).apply { setPadding(0, Ui.dp(context, 14f), 0, Ui.dp(context, 5f)) })
+        for (example in listOf("Create a shop GUI", "Make an inventory menu", "Build a player HUD", "Create a main menu with a button")) {
+            body.addView(chip(example) {
+                prompt.setText(example)
+                buildButton.performClick()
+            }, Ui.lp(Ui.WRAP, Ui.WRAP).apply { bottomMargin = Ui.dp(context, 6f) })
+        }
+        body.addView(mt("Note: this first version creates a starter GUI template in StarterGui. Press Play to preview it. More templates and object-building commands will be added next.", 11f, Ui.DIM).apply {
+            setPadding(0, Ui.dp(context, 12f), 0, 0)
+        })
     }
 
     // ------------------------------------------------------------------ chat
