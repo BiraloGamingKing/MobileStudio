@@ -189,12 +189,15 @@ class StudioTools(private val studio: Studio) {
             "Turn the user's request into actual changes in the currently open place; do not merely describe steps. The user may ask " +
             "for custom maps, buildings, props, GUIs, gameplay systems, scripts, or edits to selected objects. Use Roblox Luau and " +
             "the available Studio tools.\n\n" +
-            "WORKFLOW: (1) Understand the request and inspect the place with get_tree, get_selection, get_properties, get_script, " +
-            "or get_output as needed. (2) Make a short internal plan. (3) Build in sensible chunks with run_luau and set_script. " +
-            "(4) Keep new content grouped in clearly named Models or ScreenGuis, use meaningful names, and place world content near " +
-            "spawn or the selected object. (5) After changes, inspect the resulting tree and call get_output. Read back scripts you " +
-            "created or edited. If an actual error is present, diagnose it and make a focused repair, then check again. Do not claim " +
-            "a game script is runtime-tested just because it was written: Scripts and LocalScripts normally run when the user presses Play.\n\n" +
+            "WORKFLOW: Treat every natural-language request as a small project brief, not a template keyword. Inspect the place first. " +
+            "Translate the request into a concrete checklist covering requested objects, visuals, UI, gameplay behavior, scripts, and connections. " +
+            "Build in stages: (1) core hierarchy and world objects, (2) visual polish, (3) UI, (4) gameplay logic and data flow, " +
+            "(5) integration and verification. Use multiple focused run_luau/set_script calls; avoid giant scripts that are hard to debug. " +
+            "After each stage, inspect the relevant tree/properties and resolve tool errors before moving on. Use meaningful names and group " +
+            "all generated content under a clearly named root Model/Folder/ScreenGui. Place world content near spawn or the selected object. " +
+            "At the end, inspect the final tree, read back scripts you created or edited, and call get_output. Repair concrete errors with " +
+            "the smallest focused change, then verify again. A successful tool call only confirms an edit was applied; it does not prove " +
+            "a Script or LocalScript works at runtime. Explicitly identify anything that still needs Play-mode testing.\n\n" +
             "CUSTOMIZATION: Respect sizes, styles, colors, themes, counts, positions, and feature details from the user's wording. " +
             "When a detail is unspecified, choose a coherent default and continue instead of asking many questions. For large requests, " +
             "build a useful first version in stages and clearly say what remains. If the user refers to 'this' or 'selected', call " +
