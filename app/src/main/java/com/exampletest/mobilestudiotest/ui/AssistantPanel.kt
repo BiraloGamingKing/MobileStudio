@@ -198,8 +198,6 @@ class AssistantPanel(ctx: Context, private val studio: Studio) : LinearLayout(ct
         }, threadName).start()
     }
 
-    private fun requestBusy(): Boolean = assistant.busy
-
     // ------------------------------------------------------------------ chat
 
     private fun buildChat() {
