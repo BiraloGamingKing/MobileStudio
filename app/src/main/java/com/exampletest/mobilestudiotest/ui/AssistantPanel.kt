@@ -123,40 +123,38 @@ class AssistantPanel(ctx: Context, private val studio: Studio) : LinearLayout(ct
         }.apply { setTextColor(0xFFFFFFFF.toInt()) }
         body.addView(buildButton, Ui.lp(Ui.MATCH, Ui.WRAP))
         val aiBuildButton = Ui.button(context, "Build custom command with AI", Ui.PLAY) {
-            if (requestBusy()) {
-                result.text = "FORGE AI is already working. Wait for it to finish."
-                return@button
-            }
-            if (assistant.apiKey.isBlank()) {
-                result.text = "Custom AI building needs the existing Chat API key. Offline templates above still work without it."
-                editKey()
-                return@button
-            }
             val command = prompt.text.toString().trim()
             if (command.isEmpty()) {
                 result.text = "Pehle apna custom build command likho."
                 return@button
             }
-            result.text = "FORGE AI: planning your build…"
-            Thread({
-                assistant.send(
-                    "FORGE BUILD REQUEST: ${command}\n\nBuild this directly in the currently open place, not just explain how. First inspect the existing place with get_tree or get_selection when useful. Then create the requested objects, UI, and scripts using the available Studio tools. Keep changes grouped in clearly named Models/ScreenGuis, place new world builds near the existing spawn or selected object, and report exactly what was created. If something cannot be implemented with the available tools, say so clearly."
-                ) { event ->
-                    post {
-                        when (event) {
-                            is ClaudeAssistant.Event.Status -> result.text = "FORGE AI: ${event.text}"
-                            is ClaudeAssistant.Event.TextDelta -> result.append(event.text)
-                            is ClaudeAssistant.Event.ToolCall -> result.append("\n\n[${event.name}] ${if (event.isError) "ERROR: " else ""}${event.result.take(500)}")
-                            is ClaudeAssistant.Event.Failed -> result.append("\n\nFailed: ${event.text}")
-                            is ClaudeAssistant.Event.Notice -> result.append("\n\n${event.text}")
-                            ClaudeAssistant.Event.BlockEnd -> Unit
-                            ClaudeAssistant.Event.Done -> result.append("\n\nFORGE AI finished.")
-                        }
-                    }
-                }
-            }, "FORGE custom AI build").start()
+            runForgeAi(
+                "FORGE BUILD REQUEST: ${command}\n\nBuild this directly in the currently open place, not just explain how. Inspect the existing place and selection first. Plan the work, then create the requested objects, UI, and scripts using available Studio tools. Keep new work grouped in clearly named Models/ScreenGuis. Preserve existing content unless I explicitly ask you to replace or delete it. Place new world builds near the existing spawn or selected object. After building, inspect the Output for errors, read back any scripts you wrote, fix errors you can identify, and check the result again. Clearly distinguish what was created from what could not be verified."
+            , result, "FORGE custom AI build"
+            )
         }.apply { setTextColor(0xFFFFFFFF.toInt()) }
         body.addView(aiBuildButton, Ui.lp(Ui.MATCH, Ui.WRAP).apply { topMargin = Ui.dp(context, 6f) })
+        val actionRow = LinearLayout(context).apply { orientation = HORIZONTAL }
+        val repairButton = Ui.button(context, "Repair last build", Ui.ACCENT) {
+            runForgeAi(
+                "FORGE REPAIR REQUEST: Inspect the recent Output using get_output and inspect the objects/scripts from the most recent FORGE build. Identify actual errors or incomplete parts, make the smallest safe fixes, then re-check Output and relevant scripts. Do not delete or rebuild unrelated existing content. If there is no previous build or no actionable error, explain what you found.",
+                result, "FORGE repair"
+            )
+        }
+        actionRow.addView(repairButton, Ui.lp(0, Ui.WRAP, 1f))
+        val modifyButton = Ui.button(context, "Modify selected", Ui.PLAY) {
+            val command = prompt.text.toString().trim()
+            if (command.isEmpty()) {
+                result.text = "Selected object ko kaise modify karna hai, woh command likho."
+                return@button
+            }
+            runForgeAi(
+                "FORGE SELECTION EDIT: First call get_selection to identify the selected instance(s). Apply this requested change to the selected object(s) only: ${command}. If nothing is selected, ask the user to select an object. Preserve unrelated objects and verify the changed properties afterward.",
+                result, "FORGE selection edit"
+            )
+        }
+        actionRow.addView(modifyButton, Ui.lp(0, Ui.WRAP, 1f).apply { leftMargin = Ui.dp(context, 6f) })
+        body.addView(actionRow, Ui.lp(Ui.MATCH, Ui.WRAP).apply { topMargin = Ui.dp(context, 6f) })
         body.addView(mt("AI mode uses the configured Chat API provider and may incur provider charges. Offline template mode above needs no key or credits.", 11f, Ui.DIM).apply {
             setPadding(0, Ui.dp(context, 5f), 0, Ui.dp(context, 8f))
         })
@@ -170,6 +168,34 @@ class AssistantPanel(ctx: Context, private val studio: Studio) : LinearLayout(ct
         body.addView(mt("GUI templates are placed in StarterGui. 3D layouts are placed in Workspace.FORGE_Generated. Press Play to preview GUIs; inspect maps in Explorer.", 11f, Ui.DIM).apply {
             setPadding(0, Ui.dp(context, 12f), 0, 0)
         })
+    }
+
+    private fun runForgeAi(command: String, result: TextView, threadName: String) {
+        if (assistant.busy) {
+            result.text = "FORGE AI is already working. Wait for it to finish."
+            return
+        }
+        if (assistant.apiKey.isBlank()) {
+            result.text = "Custom AI needs the API key configured in Chat. Offline templates still work without it."
+            editKey()
+            return
+        }
+        result.text = "FORGE AI: planning…"
+        Thread({
+            assistant.send(command) { event ->
+                post {
+                    when (event) {
+                        is ClaudeAssistant.Event.Status -> result.text = "FORGE AI: ${event.text}"
+                        is ClaudeAssistant.Event.TextDelta -> result.append(event.text)
+                        is ClaudeAssistant.Event.ToolCall -> result.append("\n\n[${event.name}] ${if (event.isError) "ERROR: " else ""}${event.result.take(700)}")
+                        is ClaudeAssistant.Event.Failed -> result.append("\n\nFailed: ${event.text}")
+                        is ClaudeAssistant.Event.Notice -> result.append("\n\n${event.text}")
+                        ClaudeAssistant.Event.BlockEnd -> Unit
+                        ClaudeAssistant.Event.Done -> result.append("\n\nFORGE AI finished.")
+                    }
+                }
+            }
+        }, threadName).start()
     }
 
     private fun requestBusy(): Boolean = assistant.busy
